@@ -1,29 +1,16 @@
-import os
+import telegram
 import sqlite3
-from telegram import Update
-from telegram.ext import ApplicationBuilder, CommandHandler, ContextTypes
-from dotenv import load_dotenv
 
-load_dotenv()
-BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
-CHANNEL_ID = os.getenv("CHANNEL_ID")
+# Deinen Bot-Token hier einfügen (von @BotFather bekommen)
+BOT_TOKEN = 7814998262:AAHXM-3U5CdGe19HNPfNNdAG8SIMJEFoWLk
+CHANNEL_LINK = https://t.me/+uuDDefbXyzRiMmYy
 
-app = ApplicationBuilder().token(BOT_TOKEN).build()
+bot = telegram.Bot(token=BOT_TOKEN)
 
-def add_user(user_id):
-    conn = sqlite3.connect("users.db")
-    c = conn.cursor()
-    c.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
-    conn.commit()
-    conn.close()
-
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-    add_user(user_id)
-    await context.bot.send_message(chat_id=user_id, text="Danke für den Start! Du wirst bald freigeschaltet.")
-
-app.add_handler(CommandHandler("start", start))
-
-if __name__ == "__main__":
-    import asyncio
-    asyncio.run(app.run_polling())
+def send_access_email(email):
+    try:
+        # Sende dem Nutzer eine Nachricht oder mach etwas mit Telegram
+        bot.send_message(chat_id=email, text=f"Willkommen! Dein Zugang: {CHANNEL_LINK}")
+        print(f"Zugang an {email} gesendet.")
+    except Exception as e:
+        print(f"Fehler beim Senden: {e}")
