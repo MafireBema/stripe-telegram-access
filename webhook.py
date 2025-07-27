@@ -1,42 +1,43 @@
+import stripe
 import os
 import sqlite3
-import stripe
-from flask import Flask, request
-from telegram import Bot
-from dotenv import load_dotenv
 
-load_dotenv()
-stripe.api_key = os.getenv("STRIPE_API_KEY")
-webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
-bot = Bot(token=os.getenv("TELEGRAM_BOT_TOKEN"))
-channel_id = os.getenv("CHANNEL_ID")
+# Stripe-Webhook-Signatur
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+endpoint_secret = os.getenv("STRIPE_WEBHOOK_SECRET")
 
-app = Flask(__name__)
+# Telegram
+import requests
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
+TELEGRAM_GROUP_ID = os.getenv("TELEGRAM_GROUP_ID")
 
-def get_all_users():
+def add_user(email):
     conn = sqlite3.connect("users.db")
     c = conn.cursor()
-    c.execute("SELECT user_id FROM users")
-    users = c.fetchall()
+    c.execute("INSERT INTO users (email) VALUES (?)", (email,))
+    conn.commit()
     conn.close()
-    return [uid[0] for uid in users]
 
-@app.route("/webhook", methods=["POST"])
-def stripe_webhook():
+def stripe_webhook(request):
     payload = request.data
-    sig_header = request.headers.get("stripe-signature")
+    sig_header = request.headers.get("Stripe-Signature", "")
+    
     try:
-        event = stripe.Webhook.construct_event(payload, sig_header, webhook_secret)
+        event = stripe.Webhook.construct_event(payload, sig_header, endpoint_secret)
     except Exception as e:
-        return f"⚠️ Error: {str(e)}", 400
+        return f"⚠️ Fehler beim Verifizieren: {e}", 400
 
     if event["type"] == "checkout.session.completed":
-        for uid in get_all_users():
-            try:
-                bot.invite_chat_member(chat_id=channel_id, user_id=uid)
-            except Exception as e:
-                print(f"❌ Fehler beim Einladen von {uid}: {e}")
-    return "✅ OK", 200
+        session = event["data"]["object"]
+        customer_email = session["customer_details"]["email"]
+        add_user(customer_email)
 
-if __name__ == "__main__":
-    app.run(port=4242)
+        # Telegram-Benachrichtigung
+        message = f"✅ Neuer Zugriff für: {customer_email}"
+        requests.post(
+            f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+            data={"chat_id": TELEGRAM_GROUP_ID, "text": message}
+        )
+        return "Success", 200
+
+    return "Unhandled Event", 200
